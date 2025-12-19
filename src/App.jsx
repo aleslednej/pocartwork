@@ -11,7 +11,7 @@ function App() {
   const [mode, setMode] = useState('dimensions'); // 'dimensions' or 'view'
   const [boxDimensions, setBoxDimensions] = useState(null);
   const [textures, setTextures] = useState([null, null, null, null, null, null]);
-  const [logos, setLogos] = useState([]); // Array of { faceIndex, url, scale }
+  const [logos, setLogos] = useState([]); // Array of { faceIndex, url, scale, position: {x, y}, zIndex }
   const [autoRotate, setAutoRotate] = useState(false);
   const [currentBrand, setCurrentBrand] = useState(DEFAULT_BRAND);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
@@ -49,8 +49,17 @@ function App() {
     });
   }, []);
 
-  const handleAddLogo = useCallback((faceIndex, logoUrl, scale = 0.5) => {
-    setLogos(prev => [...prev, { faceIndex, url: logoUrl, scale }]);
+  const handleAddLogo = useCallback((faceIndex, logoUrl, scale = 0.3, position = { x: 0, y: 0 }) => {
+    setLogos(prev => {
+      const zIndex = prev.length; // Auto-increment z-index for layering
+      return [...prev, { faceIndex, url: logoUrl, scale, position, zIndex }];
+    });
+  }, []);
+
+  const handleUpdateLogo = useCallback((index, updates) => {
+    setLogos(prev => prev.map((logo, i) =>
+      i === index ? { ...logo, ...updates } : logo
+    ));
   }, []);
 
   const handleRemoveLogo = useCallback((index) => {
@@ -151,6 +160,7 @@ function App() {
               logos={logos}
               onAddLogo={handleAddLogo}
               onRemoveLogo={handleRemoveLogo}
+              onUpdateLogo={handleUpdateLogo}
             />
 
             <Controls

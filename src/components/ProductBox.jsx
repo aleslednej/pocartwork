@@ -16,31 +16,76 @@ const DEFAULT_FACE_COLORS = [
 // Face positions and rotations for decals
 // BoxGeometry faces: [+X, -X, +Y, -Y, +Z, -Z] = [right, left, top, bottom, front, back]
 const FACE_ORIENTATIONS = [
-  { rotation: [0, Math.PI / 2, 0], position: (d) => [d[0] / 2 + 0.001, 0, 0] },    // right (+X)
-  { rotation: [0, -Math.PI / 2, 0], position: (d) => [-d[0] / 2 - 0.001, 0, 0] },  // left (-X)
-  { rotation: [-Math.PI / 2, 0, 0], position: (d) => [0, d[1] / 2 + 0.001, 0] },   // top (+Y)
-  { rotation: [Math.PI / 2, 0, 0], position: (d) => [0, -d[1] / 2 - 0.001, 0] },   // bottom (-Y)
-  { rotation: [0, 0, 0], position: (d) => [0, 0, d[2] / 2 + 0.001] },              // front (+Z)
-  { rotation: [0, Math.PI, 0], position: (d) => [0, 0, -d[2] / 2 - 0.001] },       // back (-Z)
+  { rotation: [0, Math.PI / 2, 0], axis: ['z', 'y'], sign: [1, 1] },    // right (+X)
+  { rotation: [0, -Math.PI / 2, 0], axis: ['z', 'y'], sign: [-1, 1] },  // left (-X)
+  { rotation: [-Math.PI / 2, 0, 0], axis: ['x', 'z'], sign: [1, -1] },  // top (+Y)
+  { rotation: [Math.PI / 2, 0, 0], axis: ['x', 'z'], sign: [1, 1] },    // bottom (-Y)
+  { rotation: [0, 0, 0], axis: ['x', 'y'], sign: [1, 1] },              // front (+Z)
+  { rotation: [0, Math.PI, 0], axis: ['x', 'y'], sign: [-1, 1] },       // back (-Z)
 ];
 
+// Get base position for face center
+function getFaceBasePosition(faceIndex, dimensions) {
+  const offset = 0.002; // Small offset to prevent z-fighting
+  switch (faceIndex) {
+    case 0: return [dimensions[0] / 2 + offset, 0, 0]; // right (+X)
+    case 1: return [-dimensions[0] / 2 - offset, 0, 0]; // left (-X)
+    case 2: return [0, dimensions[1] / 2 + offset, 0]; // top (+Y)
+    case 3: return [0, -dimensions[1] / 2 - offset, 0]; // bottom (-Y)
+    case 4: return [0, 0, dimensions[2] / 2 + offset]; // front (+Z)
+    case 5: return [0, 0, -dimensions[2] / 2 - offset]; // back (-Z)
+    default: return [0, 0, 0];
+  }
+}
+
+// Get face size for calculating offset limits
+function getFaceSize(faceIndex, dimensions) {
+  switch (faceIndex) {
+    case 0: case 1: return [dimensions[2], dimensions[1]]; // left/right faces (depth x height)
+    case 2: case 3: return [dimensions[0], dimensions[2]]; // top/bottom faces (width x depth)
+    case 4: case 5: return [dimensions[0], dimensions[1]]; // front/back faces (width x height)
+    default: return [1, 1];
+  }
+}
+
+// Apply position offset based on face orientation
+function applyOffset(basePos, faceIndex, offset, dimensions) {
+  const orientation = FACE_ORIENTATIONS[faceIndex];
+  const faceSize = getFaceSize(faceIndex, dimensions);
+
+  const axisMap = { x: 0, y: 1, z: 2 };
+  const pos = [...basePos];
+
+  // Apply X offset (horizontal on the face)
+  const xAxis = axisMap[orientation.axis[0]];
+  pos[xAxis] += offset.x * faceSize[0] * orientation.sign[0];
+
+  // Apply Y offset (vertical on the face)
+  const yAxis = axisMap[orientation.axis[1]];
+  pos[yAxis] += offset.y * faceSize[1] * orientation.sign[1];
+
+  return pos;
+}
+
 // Decal component for a single logo
-function LogoDecal({ logoUrl, faceIndex, dimensions, scale = 0.5 }) {
+function LogoDecal({ logoUrl, faceIndex, dimensions, scale = 0.3, position = { x: 0, y: 0 }, zIndex = 0 }) {
   const texture = useTexture(logoUrl);
   const orientation = FACE_ORIENTATIONS[faceIndex];
+  const faceSize = getFaceSize(faceIndex, dimensions);
 
   // Calculate decal size based on face dimensions and scale
-  const faceSize = faceIndex < 2
-    ? [dimensions[2], dimensions[1]] // left/right faces
-    : faceIndex < 4
-      ? [dimensions[0], dimensions[2]] // top/bottom faces
-      : [dimensions[0], dimensions[1]]; // front/back faces
-
   const decalSize = Math.min(faceSize[0], faceSize[1]) * scale;
+
+  // Calculate position with offset
+  const basePos = getFaceBasePosition(faceIndex, dimensions);
+  const finalPos = applyOffset(basePos, faceIndex, position, dimensions);
+
+  // Z-index offset for layering (lower number = further from surface)
+  const polygonOffset = -4 - (zIndex * 0.5);
 
   return (
     <Decal
-      position={orientation.position(dimensions)}
+      position={finalPos}
       rotation={orientation.rotation}
       scale={[decalSize, decalSize, 0.01]}
       map={texture}
@@ -48,7 +93,7 @@ function LogoDecal({ logoUrl, faceIndex, dimensions, scale = 0.5 }) {
       depthTest={false}
       depthWrite={false}
       polygonOffset
-      polygonOffsetFactor={-4}
+      polygonOffsetFactor={polygonOffset}
     />
   );
 }
@@ -58,7 +103,7 @@ export function ProductBox({
   autoRotate = false,
   dimensions = [2, 3, 1],
   brandColors = null,
-  logos = [], // Array of { faceIndex, url, scale } for logo decals
+  logos = [], // Array of { faceIndex, url, scale, position: {x, y}, zIndex }
 }) {
   const meshRef = useRef();
 
@@ -109,17 +154,25 @@ export function ProductBox({
     }
   });
 
+  // Sort logos by zIndex for proper layering
+  const sortedLogos = useMemo(() =>
+    [...logos].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0)),
+    [logos]
+  );
+
   return (
     <mesh ref={meshRef} material={materials} castShadow receiveShadow>
       <boxGeometry args={dimensions} />
-      {/* Render logo decals */}
-      {logos.map((logo, index) => (
+      {/* Render logo decals sorted by z-index */}
+      {sortedLogos.map((logo, index) => (
         <LogoDecal
-          key={`${logo.faceIndex}-${index}`}
+          key={`${logo.faceIndex}-${logo.zIndex}-${index}`}
           logoUrl={logo.url}
           faceIndex={logo.faceIndex}
           dimensions={dimensions}
-          scale={logo.scale || 0.5}
+          scale={logo.scale || 0.3}
+          position={logo.position || { x: 0, y: 0 }}
+          zIndex={logo.zIndex || 0}
         />
       ))}
     </mesh>
