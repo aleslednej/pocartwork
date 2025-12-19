@@ -9,17 +9,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-three/drei": "^9.92.0",
+    "@react-three/fiber": "^8.15.0",
+    "pdfjs-dist": "^4.0.379",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "three": "^0.160.0",
-    "@react-three/fiber": "^8.15.0",
-    "@react-three/drei": "^9.92.0",
-    "pdfjs-dist": "^4.0.379"
+    "three": "^0.160.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
     "vite": "^5.0.0"
   }
 }

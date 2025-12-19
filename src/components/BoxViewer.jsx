@@ -15,7 +15,7 @@ function SceneBackground({ color }) {
   return null;
 }
 
-function Scene({ textures, autoRotate, dimensions, brandColors, backgroundColor }) {
+function Scene({ textures, autoRotate, dimensions, brandColors, backgroundColor, logos }) {
   return (
     <>
       <SceneBackground color={backgroundColor} />
@@ -36,6 +36,7 @@ function Scene({ textures, autoRotate, dimensions, brandColors, backgroundColor 
         autoRotate={autoRotate}
         dimensions={dimensions}
         brandColors={brandColors}
+        logos={logos}
       />
 
       {/* Ground shadow */}
@@ -58,7 +59,8 @@ export const BoxViewer = forwardRef(function BoxViewer({
   autoRotate,
   dimensions = [2, 2.8, 1],
   brandColors = null,
-  backgroundColor = '#ffffff'
+  backgroundColor = '#ffffff',
+  logos = []
 }, ref) {
   const controlsRef = useRef();
 
@@ -89,6 +91,7 @@ export const BoxViewer = forwardRef(function BoxViewer({
             dimensions={dimensions}
             brandColors={brandColors}
             backgroundColor={backgroundColor}
+            logos={logos}
           />
         </Suspense>
 

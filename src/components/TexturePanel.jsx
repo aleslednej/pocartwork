@@ -5,7 +5,6 @@ const FACE_KEYS = ['right', 'left', 'top', 'bottom', 'front', 'back'];
 const FACE_COLORS = ['#e74c3c', '#e74c3c', '#2ecc71', '#2ecc71', '#3498db', '#3498db'];
 
 // Brand logos - local paths (served from public folder)
-// Using base path for GitHub Pages compatibility
 const BASE_PATH = import.meta.env.BASE_URL || '/';
 const BRAND_LOGOS = {
   truelife: `${BASE_PATH}logos/truelife/symbol-white.png`,
@@ -13,45 +12,8 @@ const BRAND_LOGOS = {
   lauben: 'https://cdn-elem6-productdata.azureedge.net/general-assets/brand-logos/lauben-logo.png',
 };
 
-export function TexturePanel({ textures, onTextureChange, brand }) {
-  const [loadingLogo, setLoadingLogo] = useState(null);
-
-  // Load brand logo as texture using Image element (avoids CORS fetch issues)
-  const handleInsertLogo = useCallback((index) => {
-    const logoUrl = BRAND_LOGOS[brand?.id] || BRAND_LOGOS.truelife;
-    setLoadingLogo(index);
-
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-
-    img.onload = () => {
-      // Create canvas to convert image to data URL
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-
-      try {
-        const dataUrl = canvas.toDataURL('image/png');
-        onTextureChange(index, dataUrl);
-      } catch (e) {
-        // If canvas tainted by CORS, use the URL directly
-        console.warn('CORS restriction, using URL directly');
-        onTextureChange(index, logoUrl);
-      }
-      setLoadingLogo(null);
-    };
-
-    img.onerror = () => {
-      console.error('Failed to load logo');
-      // Fallback: use URL directly (will work if Three.js can load it)
-      onTextureChange(index, logoUrl);
-      setLoadingLogo(null);
-    };
-
-    img.src = logoUrl;
-  }, [brand, onTextureChange]);
+export function TexturePanel({ textures, onTextureChange, brand, logos = [], onAddLogo, onRemoveLogo }) {
+  const [activeTab, setActiveTab] = useState('logos'); // 'textures' or 'logos'
 
   const handleImageUpload = useCallback((index, file) => {
     if (!file) return;
@@ -71,66 +33,122 @@ export function TexturePanel({ textures, onTextureChange, brand }) {
     }
   }, [handleImageUpload]);
 
+  // Add logo to a face
+  const handleAddLogoToFace = useCallback((faceIndex) => {
+    const logoUrl = BRAND_LOGOS[brand?.id] || BRAND_LOGOS.truelife;
+    onAddLogo(faceIndex, logoUrl, 0.5);
+  }, [brand, onAddLogo]);
+
+  // Count logos per face
+  const logosPerFace = FACE_KEYS.map((_, faceIndex) =>
+    logos.filter(logo => logo.faceIndex === faceIndex).length
+  );
+
   return (
     <div className="texture-panel">
-      <div className="panel-header">
-        <h3>Textures</h3>
-        <span className="panel-hint">Drop images to change</span>
+      {/* Tab switcher */}
+      <div className="panel-tabs">
+        <button
+          className={`tab-btn ${activeTab === 'logos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('logos')}
+        >
+          🏷️ Loga
+        </button>
+        <button
+          className={`tab-btn ${activeTab === 'textures' ? 'active' : ''}`}
+          onClick={() => setActiveTab('textures')}
+        >
+          🎨 Textury
+        </button>
       </div>
 
-      <div className="texture-list">
-        {FACE_KEYS.map((key, index) => (
-          <div
-            key={key}
-            className={`texture-slot ${textures[index] ? 'has-texture' : ''}`}
-            onDrop={(e) => handleDrop(index, e)}
-            onDragOver={(e) => e.preventDefault()}
-          >
-            <div
-              className="face-indicator"
-              style={{ background: FACE_COLORS[index] }}
-            />
+      {/* Logos tab */}
+      {activeTab === 'logos' && (
+        <div className="logos-section">
+          <div className="panel-hint">Klikni pro přidání loga na stranu</div>
 
-            <label className="texture-upload">
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageUpload(index, e.target.files?.[0])}
-              />
-              {textures[index] ? (
-                <img src={textures[index]} alt={FACE_LABELS[index]} className="texture-thumb" />
-              ) : (
-                <div className="placeholder">
-                  <span>+</span>
-                </div>
-              )}
-            </label>
-
-            <span className="face-name">{FACE_LABELS[index]}</span>
-
-            {!textures[index] && (
+          <div className="face-buttons">
+            {FACE_KEYS.map((key, index) => (
               <button
-                className="logo-btn"
-                onClick={() => handleInsertLogo(index)}
-                disabled={loadingLogo === index}
-                title={`Insert ${brand?.name || 'TrueLife'} logo`}
+                key={key}
+                className="face-logo-btn"
+                onClick={() => handleAddLogoToFace(index)}
+                style={{ borderColor: FACE_COLORS[index] }}
               >
-                {loadingLogo === index ? '...' : '🏷️'}
+                <span className="face-label">{FACE_LABELS[index].split(' ')[0]}</span>
+                {logosPerFace[index] > 0 && (
+                  <span className="logo-count">{logosPerFace[index]}</span>
+                )}
               </button>
-            )}
-
-            {textures[index] && (
-              <button
-                className="clear-btn"
-                onClick={() => onTextureChange(index, null)}
-                title="Remove texture"
-              >
-                ×
-              </button>
-            )}
+            ))}
           </div>
-        ))}
-      </div>
+
+          {/* List of added logos */}
+          {logos.length > 0 && (
+            <div className="logos-list">
+              <div className="logos-header">Přidaná loga:</div>
+              {logos.map((logo, index) => (
+                <div key={index} className="logo-item">
+                  <span>{FACE_LABELS[logo.faceIndex].split(' ')[0]}</span>
+                  <button
+                    className="remove-logo-btn"
+                    onClick={() => onRemoveLogo(index)}
+                    title="Odebrat logo"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Textures tab */}
+      {activeTab === 'textures' && (
+        <div className="texture-list">
+          {FACE_KEYS.map((key, index) => (
+            <div
+              key={key}
+              className={`texture-slot ${textures[index] ? 'has-texture' : ''}`}
+              onDrop={(e) => handleDrop(index, e)}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <div
+                className="face-indicator"
+                style={{ background: FACE_COLORS[index] }}
+              />
+
+              <label className="texture-upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageUpload(index, e.target.files?.[0])}
+                />
+                {textures[index] ? (
+                  <img src={textures[index]} alt={FACE_LABELS[index]} className="texture-thumb" />
+                ) : (
+                  <div className="placeholder">
+                    <span>+</span>
+                  </div>
+                )}
+              </label>
+
+              <span className="face-name">{FACE_LABELS[index]}</span>
+
+              {textures[index] && (
+                <button
+                  className="clear-btn"
+                  onClick={() => onTextureChange(index, null)}
+                  title="Odebrat texturu"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <style>{`
         .texture-panel {
@@ -138,27 +156,133 @@ export function TexturePanel({ textures, onTextureChange, brand }) {
           right: 20px;
           top: 50%;
           transform: translateY(-50%);
-          background: rgba(0, 0, 0, 0.6);
+          background: rgba(0, 0, 0, 0.7);
           backdrop-filter: blur(10px);
           border-radius: 12px;
-          padding: 16px;
-          width: 140px;
+          padding: 12px;
+          width: 160px;
           z-index: 100;
         }
 
-        .panel-header {
+        .panel-tabs {
+          display: flex;
+          gap: 4px;
           margin-bottom: 12px;
         }
 
-        .panel-header h3 {
-          margin: 0;
-          font-size: 0.95rem;
-          font-weight: 600;
+        .tab-btn {
+          flex: 1;
+          padding: 6px 8px;
+          border: none;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 0.75rem;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .tab-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        .tab-btn.active {
+          background: var(--brand-primary, #bea2cd);
+          color: white;
         }
 
         .panel-hint {
           font-size: 0.7rem;
-          opacity: 0.5;
+          opacity: 0.6;
+          margin-bottom: 10px;
+          text-align: center;
+        }
+
+        .face-buttons {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 6px;
+        }
+
+        .face-logo-btn {
+          padding: 8px 6px;
+          border: 2px solid;
+          border-radius: 8px;
+          background: rgba(255, 255, 255, 0.05);
+          color: white;
+          font-size: 0.7rem;
+          cursor: pointer;
+          transition: all 0.2s;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+        }
+
+        .face-logo-btn:hover {
+          background: rgba(255, 255, 255, 0.15);
+          transform: scale(1.05);
+        }
+
+        .face-label {
+          font-weight: 500;
+        }
+
+        .logo-count {
+          position: absolute;
+          top: -6px;
+          right: -6px;
+          background: var(--brand-primary, #bea2cd);
+          color: white;
+          font-size: 0.65rem;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .logos-list {
+          margin-top: 12px;
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+          padding-top: 8px;
+        }
+
+        .logos-header {
+          font-size: 0.7rem;
+          opacity: 0.6;
+          margin-bottom: 6px;
+        }
+
+        .logo-item {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 4px 8px;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 4px;
+          margin-bottom: 4px;
+          font-size: 0.75rem;
+        }
+
+        .remove-logo-btn {
+          width: 18px;
+          height: 18px;
+          border: none;
+          border-radius: 50%;
+          background: rgba(231, 76, 60, 0.8);
+          color: white;
+          font-size: 12px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .remove-logo-btn:hover {
+          background: #e74c3c;
         }
 
         .texture-list {
@@ -267,32 +391,6 @@ export function TexturePanel({ textures, onTextureChange, brand }) {
           transform: scale(1.1);
         }
 
-        .logo-btn {
-          width: 20px;
-          height: 20px;
-          border: none;
-          border-radius: 4px;
-          background: rgba(255, 255, 255, 0.1);
-          color: white;
-          font-size: 10px;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-          flex-shrink: 0;
-        }
-
-        .logo-btn:hover {
-          background: var(--brand-primary, #bfa2cd);
-          transform: scale(1.1);
-        }
-
-        .logo-btn:disabled {
-          opacity: 0.5;
-          cursor: wait;
-        }
-
         @media (max-width: 768px) {
           .texture-panel {
             position: fixed;
@@ -302,6 +400,10 @@ export function TexturePanel({ textures, onTextureChange, brand }) {
             top: auto;
             transform: none;
             width: auto;
+          }
+
+          .face-buttons {
+            grid-template-columns: repeat(3, 1fr);
           }
 
           .texture-list {

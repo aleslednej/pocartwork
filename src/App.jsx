@@ -11,6 +11,7 @@ function App() {
   const [mode, setMode] = useState('dimensions'); // 'dimensions' or 'view'
   const [boxDimensions, setBoxDimensions] = useState(null);
   const [textures, setTextures] = useState([null, null, null, null, null, null]);
+  const [logos, setLogos] = useState([]); // Array of { faceIndex, url, scale }
   const [autoRotate, setAutoRotate] = useState(false);
   const [currentBrand, setCurrentBrand] = useState(DEFAULT_BRAND);
   const [backgroundColor, setBackgroundColor] = useState('#ffffff');
@@ -46,6 +47,14 @@ function App() {
       newTextures[index] = textureDataUrl;
       return newTextures;
     });
+  }, []);
+
+  const handleAddLogo = useCallback((faceIndex, logoUrl, scale = 0.5) => {
+    setLogos(prev => [...prev, { faceIndex, url: logoUrl, scale }]);
+  }, []);
+
+  const handleRemoveLogo = useCallback((index) => {
+    setLogos(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   const handleResetView = () => {
@@ -127,6 +136,7 @@ function App() {
               dimensions={[sceneDimensions.width, sceneDimensions.height, sceneDimensions.depth]}
               brandColors={brand.boxColors}
               backgroundColor={backgroundColor}
+              logos={logos}
             />
 
             <BackgroundSwitcher
@@ -138,6 +148,9 @@ function App() {
               textures={textures}
               onTextureChange={handleTextureChange}
               brand={brand}
+              logos={logos}
+              onAddLogo={handleAddLogo}
+              onRemoveLogo={handleRemoveLogo}
             />
 
             <Controls
